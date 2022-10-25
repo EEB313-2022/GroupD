@@ -1,0 +1,9 @@
+---
+title:"first ggplot
+author: "xy"
+---
+First plot
+
+---{r}
+library(ggplot2)
+---
