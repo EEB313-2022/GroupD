@@ -1,0 +1,11 @@
+```
+title: "First ggplot"
+author: "VZ"
+```
+
+
+Hello! this is our first plot!
+
+```(r)
+library(ggplot2)
+```
