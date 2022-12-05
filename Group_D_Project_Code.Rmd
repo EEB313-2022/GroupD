@@ -1,0 +1,483 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "G:/My Drive/UofT/2022-2023 FallWinter/EEB313/Project/Amineote life history/Data_Files")
+getwd()
+```
+```{r}
+setwd("G:/My Drive/UofT/2022-2023 FallWinter/EEB313/Project/Amineote life history/Data_Files")
+getwd()
+```
+#Hypotheses draft
+
+1. The reproductive output, in this case the average offspring produced per year, has a correlation with morphological traits. 
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ggfortify)
+library(vegan)
+library(dplyr)
+library(lme4)
+library(car)
+library(MuMIn)
+library(psych)
+library(Hmisc)
+library(gg.gap)
+library(data.table)
+```
+
+#Data manipulations
+```{r}
+amine_avg <- read.csv("Amniote_Database_Aug_2015.csv") 
+ncol(amine_avg)
+count(amine_avg, order)
+```
+
+```{r}
+
+aves_avg_bodysize <- amine_avg %>% #gather all parameters for class Aves 
+  filter(class == "Aves") %>% 
+  select(class, order, family, genus, species, adult_body_mass_g, longevity_y, litter_or_clutch_size_n, adult_svl_cm, egg_mass_g, litters_or_clutches_per_y,female_maturity_d,male_maturity_d, birth_or_hatching_weight_g, incubation_d, fledging_age_d) %>% 
+  filter(adult_body_mass_g != -999.000, longevity_y != -999.000, litter_or_clutch_size_n != -999, adult_svl_cm != -999.00, egg_mass_g != -999.00, litters_or_clutches_per_y != -999.0,female_maturity_d != -999.000, male_maturity_d != -999.000,birth_or_hatching_weight_g != -999.00,incubation_d!= -999.00,fledging_age_d != -999.00,species != "lathami") %>% 
+  mutate(avg_offspring_per_y = litter_or_clutch_size_n * litters_or_clutches_per_y)
+
+write.csv(aves_avg_bodysize, "G:/My Drive/UofT/2022-2023 FallWinter/EEB313/Project/Aves_traits.csv", row.names=FALSE)
+```
+
+```{r}
+mammal_avg_bodysize <- amine_avg %>% #gather all parameters for class Mammalia
+  filter(class == "Mammalia") %>% 
+  select(class, order, family, genus, species, adult_body_mass_g, longevity_y, litter_or_clutch_size_n,adult_svl_cm, birth_or_hatching_weight_g,birth_or_hatching_svl_cm,  litters_or_clutches_per_y, gestation_d, weaning_d, weaning_weight_g, female_maturity_d, male_maturity_d) %>% 
+    filter(adult_body_mass_g != -999.000, longevity_y != -999.000, litter_or_clutch_size_n != -999, adult_svl_cm != -999.00, litters_or_clutches_per_y != -999.0, gestation_d != -999.000, weaning_d != -999.000, weaning_weight_g != -999.000, female_maturity_d != -999.000, birth_or_hatching_weight_g != -999.000, birth_or_hatching_svl_cm != -999.000, male_maturity_d != -999.000) %>% 
+   mutate(avg_offspring_per_y = litter_or_clutch_size_n * litters_or_clutches_per_y)
+
+write.csv(mammal_avg_bodysize, "G:/My Drive/UofT/2022-2023 FallWinter/EEB313/Project/Mammalia_traits.csv", row.names=FALSE)
+```
+
+```{r}
+reptile_avg_bodysize <- amine_avg %>% #gather all parameters for class Reptilia
+  filter(class == "Reptilia") %>% 
+  select(class, order, family, genus, species, adult_body_mass_g, longevity_y, litter_or_clutch_size_n, adult_svl_cm, egg_mass_g,litters_or_clutches_per_y,female_maturity_d, male_maturity_d,birth_or_hatching_weight_g, incubation_d) %>% 
+  filter(adult_body_mass_g != -999.000, longevity_y != -999.000, litter_or_clutch_size_n != -999.000, adult_svl_cm != -999.00,egg_mass_g != -999.00,litters_or_clutches_per_y != -999.0, female_maturity_d != -999.000, male_maturity_d != -999.000, birth_or_hatching_weight_g != -999.00, incubation_d != -999) %>% 
+  mutate(avg_offspring_per_y = litter_or_clutch_size_n * litters_or_clutches_per_y)
+
+write.csv(reptile_avg_bodysize, "G:/My Drive/UofT/2022-2023 FallWinter/EEB313/Project/Reptilia_traits.csv", row.names=FALSE)
+```
+
+################################################################################################
+#Class: Aves
+
+##Correlation test among variables
+```{r}
+corr.test(aves_avg_bodysize[,6:16], method = "pearson")
+
+```
+
+##PCA for Aves
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_aves_dataset <- aves_avg_bodysize %>% 
+  select(adult_body_mass_g, longevity_y, adult_svl_cm, egg_mass_g,female_maturity_d, male_maturity_d,birth_or_hatching_weight_g, incubation_d, fledging_age_d)
+
+#PCA analysis with Aves
+aves.pca <- prcomp(PCA_aves_dataset, scale = T)
+summary(aves.pca)
+
+#extract loadings from the PCA
+aves.pca$rotation 
+
+```
+
+####PC1 and PC2 explained most of the variances, all variables contribute to PC1 relatively equally, mature(female + male) time contribute the most to the PC2 , and seems have an opposite effect compared to other variables.
+
+###Ploting the results of PCA
+```{r}
+#plots of PCA of dataset 
+biplot(aves.pca)
+autoplot(aves.pca, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(aves.pca)
+```
+####body mass, egg mass, svl, birth weight are highly correlated.
+
+###Insert PC1 and PC2 back into the Aves dataset
+
+```{r}
+#Insert PC1 and PC2 back into the Aves dataset 
+aves_avg_bodysize$PC1 <- aves.pca$x[,1]
+aves_avg_bodysize$PC2 <- aves.pca$x[,2]
+
+```
+
+###Aves model with PC axes
+```{r}
+#model of Aves dataset with PC axes
+model_aves.pca <- lm(data = aves_avg_bodysize, avg_offspring_per_y ~ PC1 + PC2)
+summary(model_aves.pca)
+
+```
+####both PC1 and PC2 have significant impact on the average offspring produced per year, and PC1 has a negative effect, PC2 has a positive effect.
+
+###Ploting the model
+```{r}
+#plot of model with PC1 
+#PC1 = body mass + svl + egg mass
+#PC2 = longevity
+plot_aves_PC1 <- ggplot(data = aves_avg_bodysize, aes(x = PC1, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+ 
+  geom_smooth(se = F)+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 55, by = 1))+
+  theme_classic()
+plot_aves_PC1 
+#plot of model with PC2 
+plot_aves_PC2 <- ggplot(data = aves_avg_bodysize, aes(x = PC2, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+  geom_smooth(se = F)+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-7, 7, by = 1))+
+  theme_classic()
+plot_aves_PC2
+
+```
+#####the annual offspring produced is negatively correlated to PC1, in an exponential mannar. the annual offspring produced will increase with increase PC2 value, reach a peak around PC2=0.5, and then decline.
+
+
+##Aves PCA without body-size correlated variables (egg mass, svl, birth weight)
+
+###PCA
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_aves_no.corr <- aves_avg_bodysize %>%  
+  select(adult_body_mass_g, longevity_y,  female_maturity_d, male_maturity_d, incubation_d, fledging_age_d)
+
+#PCA analysis with Aves
+aves.pca_no.corr <- prcomp(PCA_aves_no.corr, scale = T)
+summary(aves.pca_no.corr)
+
+#extract loadings from the PCA
+aves.pca_no.corr$rotation 
+```
+####PC1 and PC2 explained the most variances. With body mass, female maturity time, male maturity time and fledging age contribute the most to PC1 (but also longevity and incubation period also contribute to PC1 at a level pretty close to 4 mains), and incubation time contribute the most to the PC2.
+
+###plotting the PCA
+```{r}
+#plots of PCA of dataset without body-size correlated variables
+biplot(aves.pca_no.corr)
+autoplot(aves.pca_no.corr, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(aves.pca_no.corr)
+```
+###Insert PC1 and PC2 back into dataset
+```{r}
+#Insert PC1 and PC2 back into the Aves dataset 
+aves_avg_bodysize$PC1_no.corr <- aves.pca_no.corr$x[,1]
+aves_avg_bodysize$PC2_no.corr <- aves.pca_no.corr$x[,2]
+```
+###Aves model with PC axes
+```{r}
+#model of Aves dataset with PC axes 
+model_aves.pca_no.corr <- lm(data = aves_avg_bodysize, avg_offspring_per_y ~ PC1_no.corr + PC2_no.corr)
+summary(model_aves.pca_no.corr)
+
+```
+####PC1 has a significant impact on the average offspring produced per year, but PC2 has a insignificant but relatively weak impact on the average offspring produced per year
+
+###Ploting the model
+```{r}
+#plot of model with PC1 
+plot_aves_no.corr_PC1 <- ggplot(data = aves_avg_bodysize, aes(x = PC1_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+
+  geom_smooth(se = F)+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 15, by = 1))+
+  theme_classic()
+plot_aves_no.corr_PC1 
+
+#plot of model with PC2
+plot_aves_no.corr_PC2 <- ggplot(data = aves_avg_bodysize, aes(x = PC2_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+   geom_smooth(se = F)+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-7, 10, by = 1))+
+  theme_classic()
+plot_aves_no.corr_PC2
+
+```
+#####the annual offspring produced is negatively correlated to PC1, in an rather linear mannar. The annual offspring produced will increase with increase PC2 value, reach a peak around PC2=0.5, and then decline rapidly.
+
+
+
+###########################################################################################################
+
+#Class: Mammalia
+
+##Correlation test
+```{r}
+corr.test(mammal_avg_bodysize[,6:16], method = "pearson")
+```
+
+
+##PCA for Mammalia
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_mammal_dataset <- mammal_avg_bodysize %>% 
+  select(adult_body_mass_g, longevity_y, adult_svl_cm, birth_or_hatching_weight_g,  birth_or_hatching_svl_cm, gestation_d, weaning_d, weaning_weight_g, female_maturity_d,  male_maturity_d)
+
+#PCA analysis with mammals
+mammal.pca <- prcomp(PCA_mammal_dataset, scale = T)
+summary(mammal.pca)
+
+#extract loadings from the PCA
+mammal.pca$rotation
+
+```
+
+###PC1 and PC2 explained most of the variances. All varialbes contribute to PC1 relatively equally, and body mass, birth weight, gestation period, weaning time, weaning weight and female maturity time contribute the most to PC2
+
+###Ploting the results of PCA_mammal
+```{r}
+biplot(mammal.pca)
+autoplot(mammal.pca, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(mammal.pca)
+```
+####gestation time is highly correlated to female and male mature time, birth svl is highly correlated to adult svl, birth weight, weaning weaght are highly correlated to adult mass.
+
+###Insert PC1 and PC2 back into the Mammal dataset
+```{r}
+mammal_avg_bodysize$PC1 <- mammal.pca$x[,1]
+mammal_avg_bodysize$PC2 <- mammal.pca$x[,2]
+
+```
+
+###Mammalia model with PC axes
+```{r}
+model_mammal.pca <- lm(data = mammal_avg_bodysize, avg_offspring_per_y ~ PC1 + PC2)
+summary(model_mammal.pca)
+```
+####both PC1 and PC2 have significant negative impact on the average offspring produced per year
+
+###Ploting the mammal model
+```{r}
+plot_mammal_PC1 <- ggplot(data = mammal_avg_bodysize, aes(x = PC1, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 20, by = 1))+
+  theme_classic()
+plot_mammal_PC1 
+
+plot_mammal_PC2 <- ggplot(data = mammal_avg_bodysize, aes(x = PC2, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+   scale_x_continuous(breaks = seq(-15, 8, by = 1))+
+  theme_classic()
+plot_mammal_PC2
+```
+#### The annual offspring produced is negatively correlated to PC1, it first experiences a rapid drop when PC1 is around 0 and then slowly decline. The annual offsprings produced concentrated in the region -1< PC2 <1, with most of species in this region and the value of offsprings produced per year scatter from 0 to the 30+, and with some other species scatter on the positive side of the PC2 axis and all with relative low annual offspring produced. 
+
+
+##Mammal PCA without highly correlated variables (birth weight/weaning weight/body mass, gestation and maturity, adult svl/birth svl)
+
+###PCA
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_mammal_dataset_no.corr <- mammal_avg_bodysize %>% 
+  select(adult_body_mass_g, longevity_y, adult_svl_cm, female_maturity_d, male_maturity_d, weaning_d)
+
+#PCA analysis with Aves
+mammal.pca_no.corr <- prcomp(PCA_mammal_dataset_no.corr, scale = T)
+summary(mammal.pca)
+
+#extract loadings from the PCA
+mammal.pca_no.corr$rotation
+```
+
+####PC1 and PC2 explained most variances. All varialbes contributed to PC1 relative equally, with body mass and weaning time contribute slightly less. Body mass contribute the most to the PC2 and it's negative
+
+###ploting the result of PCA
+```{r}
+biplot(mammal.pca_no.corr)
+autoplot(mammal.pca_no.corr, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(mammal.pca_no.corr)
+```
+
+###Insert PC1 and PC2 back into the Mammal dataset
+```{r}
+mammal_avg_bodysize$PC1_no.corr <- mammal.pca_no.corr$x[,1]
+mammal_avg_bodysize$PC2_no.corr <- mammal.pca_no.corr$x[,2]
+
+```
+
+###Mammalia model with PC axes
+```{r}
+model_mammal.pca_no.corr <- lm(data = mammal_avg_bodysize, avg_offspring_per_y ~ PC1_no.corr + PC2_no.corr)
+summary(model_mammal.pca_no.corr)
+```
+####PC1 has a significant negative impact on the average offspring produced per year, PC2 has a insignificant but weak negative impact on the average offspring produced per year
+
+###Ploting the mammal model
+```{r}
+plot_mammal_no.corr_PC1 <- ggplot(data = mammal_avg_bodysize, aes(x = PC1_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 15, by = 1))+
+  theme_classic()
+plot_mammal_no.corr_PC1 
+
+plot_mammal_no.corr_PC2 <- ggplot(data = mammal_avg_bodysize, aes(x = PC2_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-15, 10, by = 1))+
+  theme_classic()
+plot_mammal_no.corr_PC2
+```
+#### The annual offspring produced is negatively correlated to PC1, it first experiences a rapid drop when PC1 is around 0 and then slowly decline. The annual offsprings produced concentrated in the region -1< PC2 <1, with most of species in this region and the value of offsprings produced per year scatter from 0 to the 30+, and with some other species scatter on the positive side of the PC2 axis and all with relative low annual offspring produced. 
+
+#############################################################################################
+
+#Class: Reptilia
+
+##Correlation test
+```{r}
+corr.test(reptile_avg_bodysize[,6:15], method = "pearson")
+```
+
+##PCA for Reptilia
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_reptile_dataset <- reptile_avg_bodysize %>% 
+  select(adult_body_mass_g, longevity_y, adult_svl_cm, egg_mass_g,female_maturity_d, male_maturity_d,birth_or_hatching_weight_g, incubation_d)
+
+#PCA analysis with Aves
+reptile.pca <- prcomp(PCA_reptile_dataset, scale = T)
+summary(reptile.pca)
+
+#extract loadings from the PCA
+reptile.pca$rotation
+```
+####PC1 and PC2 explained most of the variance. All varialbes except longevity contributes to PC1 relatively equally, and longevity contribute to PC2 the most and it's negative 
+
+###Ploting the results of PCA_reptile
+```{r}
+biplot(reptile.pca)
+autoplot(reptile.pca, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(reptile.pca)
+```
+###incubation, body mass, svl, birth mass and egg mass are highly correlated.
+
+###Insert PC1 and PC2 back into the Reptilia dataset
+```{r}
+reptile_avg_bodysize$PC1 <- reptile.pca$x[,1]
+reptile_avg_bodysize$PC2 <- reptile.pca$x[,2]
+
+```
+
+###Reptilia model with PC axes
+```{r}
+model_reptile.pca <- lm(data = reptile_avg_bodysize, avg_offspring_per_y ~ PC1 + PC2)
+summary(model_reptile.pca)
+```
+####Both PC1 and PC2 have significant impact on the average offspring produced per year
+
+###Ploting the reptile model
+```{r}
+plot_reptile_PC1 <- ggplot(data = reptile_avg_bodysize, aes(x = PC1, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+
+  geom_smooth(se = F)+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 10, by = 1))+
+  theme_classic()
+plot_reptile_PC1 
+
+plot_reptile_PC2 <- ggplot(data = reptile_avg_bodysize, aes(x = PC2, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+  geom_smooth(se = F)+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 5, by = 0.2))+
+  theme_classic()
+plot_reptile_PC2
+```
+####annual offspring produced is positively correlated to the PC1 and PC2. 
+
+##Reptilia PCA without highly correlated variables (body mass/svl/birth mass/egg mass)
+
+###PCA
+```{r}
+# remove all the categorical variables so we can perform PCA
+PCA_reptile_dataset_no.corr <- reptile_avg_bodysize %>% 
+  select(adult_body_mass_g, longevity_y, female_maturity_d, male_maturity_d, incubation_d)
+
+#PCA analysis with Aves
+reptile.pca_no.corr <- prcomp(PCA_reptile_dataset_no.corr, scale = T)
+summary(reptile.pca_no.corr)
+
+#extract loadings from the PCA
+reptile.pca_no.corr$rotation
+```
+####PC1 and PC2 explained most of the variance. female and male maturity time and adult body mass contribute the most to PC1, and longevity contribute the most to PC2
+
+###Ploting the result of PCA
+```{r}
+biplot(reptile.pca_no.corr)
+autoplot(reptile.pca_no.corr, loadings = T, loadings.label = T,loadings.colour = "red") +
+  theme_classic()
+plot(reptile.pca_no.corr)
+```
+
+###Insert PC1 and PC2 back into the Reptilia dataset
+```{r}
+reptile_avg_bodysize$PC1_no.corr <- reptile.pca_no.corr$x[,1]
+reptile_avg_bodysize$PC2_no.corr <- reptile.pca_no.corr$x[,2]
+
+```
+
+###Reptilia model with PC axes
+```{r}
+model_reptile.pca_no.corr <- lm(data = reptile_avg_bodysize, avg_offspring_per_y ~ PC1_no.corr + PC2_no.corr)
+summary(model_reptile.pca_no.corr)
+
+```
+####PC1 has a insignificant but weak impact on the average offspring produced per year, and PC2 has a significant impact on the average offspring produced per year.
+
+###Ploting the reptile model
+```{r}
+plot_reptile_no.corr_PC1 <- ggplot(data = reptile_avg_bodysize, aes(x = PC1_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "red")+
+  geom_smooth(se = F)+
+  labs(x = "PC1", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-5, 7, by = 1))+
+  theme_classic()
+plot_reptile_no.corr_PC1 
+
+plot_reptile_no.corr_PC2 <- ggplot(data = reptile_avg_bodysize, aes(x = PC2_no.corr, y = avg_offspring_per_y))+
+  geom_point(size = 1, alpha = 0.5, colour = "blue")+
+  geom_smooth(se = F)+
+  labs(x = "PC2", y = "average number of offsprings produced per year")+
+  scale_x_continuous(breaks = seq(-3, 2, by = 0.2))+
+  theme_classic()
+plot_reptile_no.corr_PC2
+```
+####annual offspring produced is positively correlated to the PC1 and PC2.
+
+####################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
